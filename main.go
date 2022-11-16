@@ -24,6 +24,7 @@ func main() {
 		instanceId string
 		err        error
 		s3Client   *s3.Client
+		out        []byte
 	)
 
 	ctx := context.Background()
@@ -50,6 +51,13 @@ func main() {
 	}
 
 	fmt.Printf("Upload complete successfully.\n")
+
+	if out, err = downloadFromS3Bucket(ctx, s3Client); err != nil {
+		fmt.Printf("downloadFromS3Bucket error: %s", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Download complete successfully.%s\n", out)
 }
 
 func createEC2(ctx context.Context) (string, error) {
@@ -193,4 +201,25 @@ func uploadToS3Bucket(ctx context.Context, s3Client *s3.Client) error {
 		return fmt.Errorf("Upload error: %s", err)
 	}
 	return nil
+}
+
+func downloadFromS3Bucket(ctx context.Context, s3Client *s3.Client) ([]byte, error) {
+
+	downloader := manager.NewDownloader(s3Client)
+	buffer := manager.NewWriteAtBuffer([]byte{})
+
+	num_bytes, err := downloader.Download(ctx, buffer, &s3.GetObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String("test.txt"),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("Download error: %s", err)
+	}
+
+	if num_bytes != int64(len(buffer.Bytes())) {
+		return nil, fmt.Errorf("Numbytes receive doesn't match: %s vs %d", num_bytes, len(buffer.Bytes()))
+	}
+
+	return buffer.Bytes(), nil
 }
