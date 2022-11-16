@@ -8,6 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -31,6 +32,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	fmt.Printf("Instace ID: %s\n", instanceId)
+
 	if s3Client, err = initS3Client(ctx); err != nil {
 		fmt.Printf("initS3Client error: %s", err)
 		os.Exit(1)
@@ -46,7 +49,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Instace ID: %s\n", instanceId)
+	fmt.Printf("Upload complete successfully.\n")
 }
 
 func createEC2(ctx context.Context) (string, error) {
@@ -178,5 +181,16 @@ func createS3Bucket(ctx context.Context, s3Client *s3.Client) error {
 }
 
 func uploadToS3Bucket(ctx context.Context, s3Client *s3.Client) error {
+
+	uploader := manager.NewUploader(s3Client)
+	_, err := uploader.Upload(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String("test.txt"),
+		Body:   strings.NewReader("hello world"),
+	})
+
+	if err != nil {
+		return fmt.Errorf("Upload error: %s", err)
+	}
 	return nil
 }
