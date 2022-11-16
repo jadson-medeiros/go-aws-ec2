@@ -10,26 +10,47 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	typesS3 "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
+
+const bucketName = "aws-demo-test-bucket-22dez"
+const regionName = "us-east-1"
 
 func main() {
 
 	var (
 		instanceId string
 		err        error
+		s3Client   *s3.Client
 	)
 
 	ctx := context.Background()
-	if instanceId, err = createEC2(ctx, "us-east-1"); err != nil {
+	if instanceId, err = createEC2(ctx); err != nil {
 		fmt.Printf("createEC2 error: %s", err)
+		os.Exit(1)
+	}
+
+	if s3Client, err = initS3Client(ctx); err != nil {
+		fmt.Printf("initS3Client error: %s", err)
+		os.Exit(1)
+	}
+
+	if err = createS3Bucket(ctx, s3Client); err != nil {
+		fmt.Printf("createS3Bucket error: %s", err)
+		os.Exit(1)
+	}
+
+	if err = uploadToS3Bucket(ctx, s3Client); err != nil {
+		fmt.Printf("uploadToS3Bucket error: %s", err)
 		os.Exit(1)
 	}
 
 	fmt.Printf("Instace ID: %s\n", instanceId)
 }
 
-func createEC2(ctx context.Context, region string) (string, error) {
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+func createEC2(ctx context.Context) (string, error) {
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(regionName))
 	if err != nil {
 		return "", fmt.Errorf("unable to load SDK config, %v", err)
 	}
@@ -107,4 +128,55 @@ func createEC2(ctx context.Context, region string) (string, error) {
 	}
 
 	return *instance.Instances[0].InstanceId, nil
+}
+
+func initS3Client(ctx context.Context) (*s3.Client, error) {
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(regionName))
+	if err != nil {
+		return nil, fmt.Errorf("unable to load SDK config, %v", err)
+	}
+
+	return s3.NewFromConfig(cfg), nil
+}
+
+func createS3Bucket(ctx context.Context, s3Client *s3.Client) error {
+	allBuckets, err := s3Client.ListBuckets(ctx, &s3.ListBucketsInput{})
+
+	if err != nil {
+		return fmt.Errorf("ListBuckets error: %s", err)
+	}
+
+	found := false
+
+	for _, bucket := range allBuckets.Buckets {
+		if *bucket.Name == bucketName {
+			found = true
+		}
+	}
+
+	if !found {
+		_, err = s3Client.CreateBucket(ctx, &s3.CreateBucketInput{
+			Bucket: aws.String(bucketName),
+			CreateBucketConfiguration: &typesS3.CreateBucketConfiguration{
+				LocationConstraint: regionName,
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("CreateBucket error: %s", err)
+		}
+	}
+	_, err = s3Client.CreateBucket(ctx, &s3.CreateBucketInput{
+		Bucket: aws.String(bucketName),
+		CreateBucketConfiguration: &typesS3.CreateBucketConfiguration{
+			LocationConstraint: regionName,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("CreateBucket error: %s", err)
+	}
+	return nil
+}
+
+func uploadToS3Bucket(ctx context.Context, s3Client *s3.Client) error {
+	return nil
 }
